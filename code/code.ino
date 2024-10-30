@@ -9,7 +9,7 @@ constexpr static const bool DEBUG = true; /// en-/disable debug output
 constexpr static const uint8_t DATA_PIN = 0; /// The pin the leds are connected to
 constexpr static const uint16_t NUM_FINS = 5; /// The number of fins the start has
 constexpr static const uint16_t NUM_LEDS_BETWEEN_TIPS = 9; /// The number of leds between tips (without tip leds)
-constexpr static const uint16_t LED_OFFSET = 0; /// Offset for first LED
+constexpr static const uint16_t LED_OFFSET = 19; /// Offset for first LED
 //#define NO_TIP_AND_PIT_LEDS /// Uncomment this if you do not have LEDS in the tip or pit
 
 // 60000 milliseconds = 1 minute
@@ -65,7 +65,7 @@ void setup()
     // FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
     FastLED.addLeds<WS2812B, DATA_PIN>(leds, NUM_LEDS);
     // FastLED.setMaxPowerInVoltsAndMilliamps(5, 400); // Limit power to 2 Watts (5V * 0.4A)
-    FastLED.setBrightness(128);
+    FastLED.setBrightness(92);
     leds.fill_solid(0x000000); // Clear all leds
     FastLED.show();
 }
@@ -233,7 +233,7 @@ bool outsideRainbow(const uint32_t time)
     // Fill rainbow between first tips
     for (uint8_t i = 0; i < LED_COUNT; ++i)
     {
-        leds[i].setHue(((hue - (255 / (NUM_LEDS_IN_FIN)) * i) + LED_OFFSET) % 256);
+        leds[(i+LED_OFFSET) % NUM_LEDS].setHue((hue - (255 / (NUM_LEDS_IN_FIN)) * i) % 256);
     }
 
     mirrorFirstFin();
@@ -294,7 +294,7 @@ bool circleAnimation(const uint32_t time, const CHSV& color)
     {
         finIndex = (finIndex + NUM_FINS / 2) % NUM_FINS;
     }
-    const uint16_t ledIndex = (ledInFinIndex + finIndex * ((2 * NUM_LEDS_BETWEEN_TIPS) + 2)) % NUM_LEDS;
+    const uint16_t ledIndex = ((ledInFinIndex + finIndex * ((2 * NUM_LEDS_BETWEEN_TIPS) + 2)) + LED_OFFSET ) % NUM_LEDS;
 
     leds.fadeToBlackBy(convertPercent(200.0 / (NUM_LEDS_BETWEEN_TIPS + 2)));
     leds[ledIndex] = color;
@@ -351,23 +351,32 @@ void mirrorFirstFin()
 #if defined(NO_TIP_AND_PIT_LEDS)
     leds(NUM_LEDS_IN_FIN, NUM_LEDS_BETWEEN_TIPS) = leds(0, NUM_LEDS_BETWEEN_TIPS);
 #else
-    leds(NUM_LEDS_IN_FIN, NUM_LEDS_BETWEEN_TIPS + 2) = leds(1, NUM_LEDS_BETWEEN_TIPS + 1);
+    leds(NUM_LEDS_IN_FIN + LED_OFFSET, NUM_LEDS_BETWEEN_TIPS + 2 + LED_OFFSET) = leds(1 + LED_OFFSET, NUM_LEDS_BETWEEN_TIPS + 1 + LED_OFFSET);
 #endif
 }
 
 // Copies the first fin to all other fins
 void copyFirstFinToAllFins()
 {
-    for (uint16_t fin = 1; fin < NUM_FINS; ++fin)
+    if (LED_OFFSET > 0)
+    {
+      leds(0, LED_OFFSET - 1) = leds(NUM_LEDS_IN_FIN+1, NUM_LEDS_IN_FIN + LED_OFFSET);
+    }
+
+    for (uint16_t fin = 1; fin < (NUM_FINS-1); ++fin)
     {
 #if defined(NO_TIP_AND_PIT_LEDS)
         const int finStart = (2 * fin * NUM_LEDS_BETWEEN_TIPS);
         leds(finStart, finStart + NUM_LEDS_IN_FIN) = leds(0, NUM_LEDS_IN_FIN);
 #else
         const int finStart = (2 * fin * NUM_LEDS_BETWEEN_TIPS) + (fin * 2);
-        leds(finStart, finStart + NUM_LEDS_IN_FIN) = leds(0, NUM_LEDS_IN_FIN);
+        leds(finStart+LED_OFFSET, finStart + NUM_LEDS_IN_FIN+LED_OFFSET) = leds(LED_OFFSET, NUM_LEDS_IN_FIN+LED_OFFSET);
 #endif
     }
+
+    uint16_t fin = NUM_FINS - 1;
+    const int finStart = (2 * fin * NUM_LEDS_BETWEEN_TIPS) + (fin * 2);
+    leds(finStart+LED_OFFSET, NUM_LEDS-1) = leds(finStart+LED_OFFSET - (NUM_LEDS_IN_FIN + 1), NUM_LEDS-1 - (NUM_LEDS_IN_FIN + 1));
 }
 
 // Helper function that returns true after the given animationStepTime has passed
